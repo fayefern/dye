@@ -1,0 +1,4 @@
+[package]
+name = "dye-core"
+version.workspace = true
+edition.workspace = true

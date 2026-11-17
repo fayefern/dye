@@ -1,0 +1,4 @@
+[package]
+name = "dye-wgpu"
+version.workspace = true
+edition.workspace = true

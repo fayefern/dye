@@ -1,0 +1,56 @@
+name: CI
+
+on:
+    push:
+    pull_request:
+    workflow_dispatch:
+
+env:
+    CARGO_TERM_COLOR: always
+    RUSTFLAGS: --deny warnings
+
+jobs:
+    tests:
+        name: Tests CI
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest, macos-latest]
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: dtolnay/rust-toolchain@stable
+
+            - uses: Swatinem/rust-cache@v2
+
+            - run: rustc --version && cargo --version
+
+            - name: Run tests
+              run: cargo test --workspace --all-targets --all-features --profile github-ci
+
+    format:
+        name: Rustfmt CI
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: dtolnay/rust-toolchain@stable
+
+            - run: cargo fmt --version
+
+            - run: cargo fmt -- --check
+
+    clippy:
+        name: Clippy CI
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: dtolnay/rust-toolchain@stable
+
+            - uses: Swatinem/rust-cache@v2
+
+            - run: cargo clippy --version
+
+            - run: cargo clippy --workspace --all-targets --all-features -- --deny warnings

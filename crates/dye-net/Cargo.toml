@@ -1,0 +1,4 @@
+[package]
+name = "dye-net"
+version.workspace = true
+edition.workspace = true

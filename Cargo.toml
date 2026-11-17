@@ -1,0 +1,46 @@
+[workspace]
+members = [
+    "crates/dye-app",
+    "crates/dye-core",
+    "crates/dye-engine",
+    "crates/dye-net",
+    "crates/dye-render",
+    "crates/dye-wgpu",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+dye-app = { path = "crates/dye-app" }
+dye-core = { path = "crates/dye-core" }
+dye-engine = { path = "crates/dye-engine" }
+dye-net = { path = "crates/dye-net" }
+dye-render = { path = "crates/dye-render" }
+dye-wgpu = { path = "crates/dye-wgpu" }
+
+anyhow = "1.0.104"
+thiserror = "2.0.21"
+winit = "0.30.13"
+
+[profile.release]
+opt-level = 3
+debug = true
+
+[profile.github-ci]
+inherits = "dev"
+strip = "symbols"
+debug = false
+opt-level = 3
+
+[package]
+name = "dye-bin"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dye-app.workspace = true
+
+anyhow.workspace = true

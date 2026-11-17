@@ -1,0 +1,4 @@
+[package]
+name = "dye-render"
+version.workspace = true
+edition.workspace = true

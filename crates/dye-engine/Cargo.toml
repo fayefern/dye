@@ -1,0 +1,4 @@
+[package]
+name = "dye-engine"
+version.workspace = true
+edition.workspace = true
