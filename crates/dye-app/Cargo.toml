@@ -4,5 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+dye-render.workspace = true
+
+bytemuck.workspace = true
+glam.workspace = true
 thiserror.workspace = true
 winit.workspace = true

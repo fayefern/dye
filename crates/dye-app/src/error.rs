@@ -10,6 +10,10 @@ pub enum AppError {
 
 #[derive(Error, Debug)]
 pub enum AppOptError {
+    #[error("field is mandatory for {0}")]
+    Mandatory(String),
+    #[error("unexpected input, {0}")]
+    Unexpected(String),
     #[error("file path missing for {0}")]
     Missing(String),
     #[error("file path invalid for {0}")]

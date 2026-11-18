@@ -2,3 +2,12 @@
 name = "dye-wgpu"
 version.workspace = true
 edition.workspace = true
+
+[dependencies]
+dye-render.workspace = true
+
+bytemuck.workspace = true
+pollster.workspace = true
+raw-window-handle.workspace = true
+thiserror.workspace = true
+wgpu.workspace = true
