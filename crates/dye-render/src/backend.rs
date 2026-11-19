@@ -60,11 +60,11 @@ pub mod usage {
     pub const STORAGE: u32 = 8;
 }
 
-pub struct BackendDesc {
+pub struct BackendDesc<'a> {
     pub window: std::sync::Arc<dyn WindowSource>,
     pub width: u32,
     pub height: u32,
-    pub vsync: bool,
+    pub opt: &'a dye_opt::launch::GpuOpt,
 }
 
 pub trait WindowSource:

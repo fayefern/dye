@@ -1,3 +1,5 @@
+use crate::opt::ToWgpu;
+
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 fn wgpu_err<E: std::fmt::Display>(desc: &str) -> impl FnOnce(E) -> dye_render::BackendError + '_ {
@@ -7,7 +9,6 @@ fn wgpu_err<E: std::fmt::Display>(desc: &str) -> impl FnOnce(E) -> dye_render::B
 pub struct WgpuRenderer {
     label: String,
     device: wgpu::Device,
-    adapter: wgpu::Adapter,
     queue: wgpu::Queue,
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
@@ -21,24 +22,23 @@ pub struct WgpuRenderer {
 
 impl WgpuRenderer {
     pub fn new(desc: &dye_render::BackendDesc) -> Result<Self, dye_render::BackendError> {
-        let instance =
-            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+        let instance = wgpu::Instance::new(instance_descriptor(desc.opt));
         let surface = instance
             .create_surface(desc.window.clone())
             .map_err(wgpu_err("surface creation"))?;
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: Some(&surface),
-            ..Default::default()
-        }))
-        .map_err(wgpu_err("no suitable adapter"))?;
+        let adapter = select_adapter(&instance, &surface, desc.opt)
+            .map_err(wgpu_err("no suitable adapter"))?;
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("render-wgpu"),
+            label: Some("device-wgpu"),
             ..Default::default()
         }))
         .map_err(wgpu_err("device creation"))?;
 
-        device.on_uncaptured_error(std::sync::Arc::new(|e| eprintln!("wgpu: {e}")));
+        let policy = desc.opt.error_policy;
+        device.on_uncaptured_error(std::sync::Arc::new(move |e| match policy {
+            dye_opt::launch::GpuErrorPolicy::Log => tracing::error!("wgpu: {e}"),
+            dye_opt::launch::GpuErrorPolicy::Panic => panic!("wgpu: {e}"),
+        }));
 
         let mut config = surface
             .get_default_config(&adapter, desc.width, desc.height)
@@ -48,16 +48,28 @@ impl WgpuRenderer {
         if let Some(format) = caps.formats.iter().copied().find(|f| f.is_srgb()) {
             config.format = format;
         }
+        config.present_mode = desc.opt.present_mode.to_wgpu();
+        config.desired_maximum_frame_latency = desc.opt.desired_max_frame_latency.max(1);
         surface.configure(&device, &config);
 
         let depth_texture = WgpuTexture::create_depth_texture(&device, config.width, config.height);
 
         let info = adapter.get_info();
+        tracing::info!(
+            adapter = %info.name,
+            backend = ?info.backend,
+            device_type = ?info.device_type,
+            driver = %info.driver,
+            driver_info = %info.driver_info,
+            format = ?config.format,
+            present_mode = ?config.present_mode,
+            frame_latency = config.desired_maximum_frame_latency,
+            "gpu initialized"
+        );
 
         Ok(Self {
             label: format!("wgpu-{}", info.backend.to_str()),
             device,
-            adapter,
             queue,
             surface,
             config,
@@ -117,7 +129,7 @@ impl dye_render::Backend for WgpuRenderer {
     }
 
     fn set_size(&mut self, width: u32, height: u32) {
-        if width == 0 || height == 0 {
+        if !(0..8192).contains(&width) || !(0..8192).contains(&height) {
             return;
         }
         if (self.config.width, self.config.height) != (width, height) {
@@ -453,6 +465,70 @@ impl dye_render::Backend for WgpuRenderer {
     }
 }
 
+fn instance_descriptor(opt: &dye_opt::launch::GpuOpt) -> wgpu::InstanceDescriptor {
+    let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+
+    if !matches!(opt.backend, dye_opt::launch::WgpuBackend::All) {
+        desc.backends = opt.backend.to_wgpu();
+    }
+    match opt.validation {
+        dye_opt::launch::Validation::Auto => {}
+        dye_opt::launch::Validation::On => desc.flags |= wgpu::InstanceFlags::debugging(),
+        dye_opt::launch::Validation::Off => {
+            desc.flags &= !(wgpu::InstanceFlags::VALIDATION | wgpu::InstanceFlags::DEBUG)
+        }
+    }
+    desc
+}
+
+fn select_adapter(
+    instance: &wgpu::Instance,
+    surface: &wgpu::Surface<'_>,
+    opt: &dye_opt::launch::GpuOpt,
+) -> Result<wgpu::Adapter, dye_render::BackendError> {
+    let request_adapter = |force_fallback_adapter: bool| {
+        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: opt.power_preference.to_wgpu(),
+            force_fallback_adapter,
+            compatible_surface: Some(surface),
+            ..Default::default()
+        }))
+        .map_err(wgpu_err("no suitable adapter"))
+    };
+
+    let all_adapters = || pollster::block_on(instance.enumerate_adapters(wgpu::Backends::all()));
+
+    let auto_selection = |reason: String| {
+        tracing::warn!("{reason}; reverting to automatic adapter selection");
+        request_adapter(false)
+    };
+
+    match &opt.adapter {
+        dye_opt::launch::AdapterSelection::Auto => request_adapter(false),
+        dye_opt::launch::AdapterSelection::Name(name) => {
+            let needle = name.to_lowercase();
+            let found = all_adapters().into_iter().find(|a| {
+                a.get_info().name.to_lowercase().contains(&needle)
+                    && a.is_surface_supported(surface)
+            });
+            match found {
+                Some(a) => Ok(a),
+                None => auto_selection(format!("no surface-compatible adapter matches {name:?}")),
+            }
+        }
+        dye_opt::launch::AdapterSelection::Index(idx) => match all_adapters().into_iter().nth(*idx)
+        {
+            Some(a) if a.is_surface_supported(surface) => Ok(a),
+            Some(a) => auto_selection(format!(
+                "adapter {idx} ({}) cannot present to this window",
+                a.get_info().name
+            )),
+            None => auto_selection(format!("adapter index {idx} out of range")),
+        },
+        dye_opt::launch::AdapterSelection::Software => request_adapter(true),
+    }
+}
+
 struct WgpuTexture {
     raw: wgpu::Texture,
     view: wgpu::TextureView,
@@ -493,4 +569,25 @@ struct WgpuBound {
     pipeline: Option<u32>,
     buffers: std::collections::BTreeMap<u32, u32>,
     stale: bool,
+}
+
+pub fn describe_adapters(backend: dye_opt::launch::WgpuBackend) -> Vec<String> {
+    let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+    if !matches!(backend, dye_opt::launch::WgpuBackend::All) {
+        desc.backends = backend.to_wgpu();
+    }
+    let instance = wgpu::Instance::new(desc);
+    let adapters = pollster::block_on(instance.enumerate_adapters(wgpu::Backends::all()));
+
+    adapters
+        .iter()
+        .enumerate()
+        .map(|(i, a)| {
+            let info = a.get_info();
+            format!(
+                "[{i}] {} ({:?}, {:?})",
+                info.name, info.backend, info.device_type
+            )
+        })
+        .collect()
 }

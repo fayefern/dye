@@ -1,0 +1,35 @@
+version = 1
+
+[paths]
+
+[window]
+size = "1280*720"
+mode = "windowed"
+
+[gpu]
+backend = "all"
+adapter = "auto"
+power_preference = "high-performance"
+present_mode = "auto-vsync"
+desired_max_frame_latency = 2
+validation = "auto"
+error_policy = "log"
+
+[log]
+level = "info"
+timestamps = "utc"
+show_target = true
+show_thread = false
+show_source_location = false
+capture_panics = true
+
+[log.to_console]
+enabled = true
+format = "compact"
+color = "auto"
+
+[log.to_file]
+enabled = true
+format = "compact"
+rotation = "launch"
+keep = 8

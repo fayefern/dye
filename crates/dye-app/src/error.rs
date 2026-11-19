@@ -7,17 +7,3 @@ pub enum AppError {
     #[error("external error: {0}")]
     External(String),
 }
-
-#[derive(Error, Debug)]
-pub enum AppOptError {
-    #[error("field is mandatory for {0}")]
-    Mandatory(String),
-    #[error("unexpected input, {0}")]
-    Unexpected(String),
-    #[error("file path missing for {0}")]
-    Missing(String),
-    #[error("file path invalid for {0}")]
-    Invalid(String),
-    #[error("window size cannot be 0")]
-    NullSize,
-}

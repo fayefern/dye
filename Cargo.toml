@@ -4,6 +4,7 @@ members = [
     "crates/dye-core",
     "crates/dye-engine",
     "crates/dye-net",
+    "crates/dye-opt",
     "crates/dye-render",
     "crates/dye-wgpu",
 ]
@@ -18,16 +19,26 @@ dye-app = { path = "crates/dye-app" }
 dye-core = { path = "crates/dye-core" }
 dye-engine = { path = "crates/dye-engine" }
 dye-net = { path = "crates/dye-net" }
+dye-opt = { path = "crates/dye-opt" }
 dye-render = { path = "crates/dye-render" }
 dye-wgpu = { path = "crates/dye-wgpu" }
 
-anyhow = "1.0.104"
 bytemuck = "1.25.2"
+clap = { version = "4.6.8", features = ["derive", "env"] }
+directories = "6.0.0"
 glam = "0.34.3"
 pollster = "1.0.1"
 raw-window-handle = "0.6.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_ignored = "0.1.14"
 thiserror = "2.0.21"
-wgpu = "30.0.2"
+toml = "1.2.1"
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+wgpu = { version = "30.0.2", default-features = false, features = [
+    "std", "vulkan", "metal", "dx12", "gles", "wgsl"
+    ] }
 winit = "0.30.13"
 
 [profile.release]
@@ -47,7 +58,12 @@ edition.workspace = true
 
 [dependencies]
 dye-app.workspace = true
+dye-opt.workspace = true
 dye-render.workspace = true
 dye-wgpu.workspace = true
 
-anyhow.workspace = true
+clap.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
