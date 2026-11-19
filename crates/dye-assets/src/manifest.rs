@@ -4,9 +4,9 @@ use dye_opt::file::{Loaded, OptFile, load_str};
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 
-use crate::source::ResSource;
+use crate::source::PackSource;
 
-pub fn read_manifest(source: &dyn ResSource) -> io::Result<Loaded<ResManifest>> {
+pub fn read_manifest(source: &dyn PackSource) -> io::Result<Loaded<ResManifest>> {
     let bytes = source.read(ResManifest::FILE_NAME)?;
     let text =
         String::from_utf8(bytes).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -24,7 +24,7 @@ pub struct ResManifest {
 }
 
 impl OptFile for ResManifest {
-    const FILE_NAME: &'static str = "res.toml";
+    const FILE_NAME: &'static str = "pack.toml";
     const VERSION: u32 = 1;
 
     fn validate(&mut self, issues: &mut dye_opt::warning::Issues) {

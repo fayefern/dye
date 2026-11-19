@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fs::{self, File},
     hash::Hasher,
     io::{self, Read},
@@ -14,7 +14,7 @@ use zip::ZipArchive;
 
 use crate::error::PathError;
 
-pub trait ResSource: Send + Sync {
+pub trait PackSource: Send + Sync {
     fn label(&self) -> String;
     fn list(&self) -> io::Result<Listing>;
     fn read(&self, path: &str) -> io::Result<Vec<u8>>;
@@ -79,7 +79,7 @@ impl DirSource {
     }
 }
 
-impl ResSource for DirSource {
+impl PackSource for DirSource {
     fn label(&self) -> String {
         self.root.display().to_string()
     }
@@ -232,7 +232,7 @@ impl ZipSource {
     }
 }
 
-impl ResSource for ZipSource {
+impl PackSource for ZipSource {
     fn label(&self) -> String {
         self.path.display().to_string()
     }
@@ -305,7 +305,7 @@ impl EmbeddedSource {
     }
 }
 
-impl ResSource for EmbeddedSource {
+impl PackSource for EmbeddedSource {
     fn label(&self) -> String {
         self.label.to_owned()
     }
@@ -347,6 +347,56 @@ impl ResSource for EmbeddedSource {
         self.dir
             .get_file(path)
             .map(|f| f.contents().to_vec())
+            .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
+    }
+}
+
+pub struct MemorySource {
+    label: String,
+    files: BTreeMap<String, Vec<u8>>,
+}
+
+impl MemorySource {
+    pub fn new(label: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            files: BTreeMap::new(),
+        }
+    }
+
+    pub fn with(mut self, path: &str, bytes: impl Into<Vec<u8>>) -> Self {
+        self.files.insert(path.to_owned(), bytes.into());
+
+        self
+    }
+}
+
+impl PackSource for MemorySource {
+    fn label(&self) -> String {
+        self.label.clone()
+    }
+
+    fn list(&self) -> io::Result<Listing> {
+        let files = self
+            .files
+            .iter()
+            .map(|(p, b)| FileEntry {
+                path: p.clone(),
+                size: b.len() as u64,
+                fingerprint: mix(&[b.len() as u64]),
+            })
+            .collect();
+        let rejected = Vec::new();
+
+        Ok(Listing { files, rejected })
+    }
+
+    fn read(&self, path: &str) -> io::Result<Vec<u8>> {
+        check_safe(path).map_err(invalid)?;
+
+        self.files
+            .get(path)
+            .cloned()
             .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
     }
 }

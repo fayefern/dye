@@ -6,7 +6,7 @@ members = [
     "crates/dye-net",
     "crates/dye-opt",
     "crates/dye-render",
-    "crates/dye-res",
+    "crates/dye-assets",
     "crates/dye-wgpu",
 ]
 resolver = "3"
@@ -17,16 +17,17 @@ edition = "2024"
 
 [workspace.dependencies]
 dye-app = { path = "crates/dye-app" }
+dye-assets = { path = "crates/dye-assets" }
 dye-core = { path = "crates/dye-core" }
 dye-engine = { path = "crates/dye-engine" }
 dye-net = { path = "crates/dye-net" }
 dye-opt = { path = "crates/dye-opt" }
 dye-render = { path = "crates/dye-render" }
-dye-res = { path = "crates/dye-res" }
 dye-wgpu = { path = "crates/dye-wgpu" }
 
 bytemuck = "1.25.2"
 clap = { version = "4.6.8", features = ["derive", "env"] }
+crossbeam-channel = "0.5.17"
 directories = "6.0.0"
 fnv = "1.0.7"
 glam = "0.34.3"
@@ -64,9 +65,9 @@ edition.workspace = true
 
 [dependencies]
 dye-app.workspace = true
+dye-assets.workspace = true
 dye-opt.workspace = true
 dye-render.workspace = true
-dye-res.workspace = true
 dye-wgpu.workspace = true
 
 clap.workspace = true

@@ -541,14 +541,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "dye-assets"
+version = "0.1.0"
+dependencies = [
+ "crossbeam-channel",
+ "dye-core",
+ "dye-opt",
+ "fnv",
+ "include_dir",
+ "semver",
+ "serde",
+ "thiserror 2.0.21",
+ "zip",
+]
+
+[[package]]
 name = "dye-bin"
 version = "0.1.0"
 dependencies = [
  "clap",
  "dye-app",
+ "dye-assets",
  "dye-opt",
  "dye-render",
- "dye-res",
  "dye-wgpu",
  "include_dir",
  "thiserror 2.0.21",
@@ -560,6 +575,9 @@ dependencies = [
 [[package]]
 name = "dye-core"
 version = "0.1.0"
+dependencies = [
+ "crossbeam-channel",
+]
 
 [[package]]
 name = "dye-engine"
@@ -587,19 +605,6 @@ dependencies = [
  "dye-opt",
  "raw-window-handle",
  "thiserror 2.0.21",
-]
-
-[[package]]
-name = "dye-res"
-version = "0.1.0"
-dependencies = [
- "dye-opt",
- "fnv",
- "include_dir",
- "semver",
- "serde",
- "thiserror 2.0.21",
- "zip",
 ]
 
 [[package]]

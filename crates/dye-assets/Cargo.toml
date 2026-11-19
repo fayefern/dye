@@ -1,11 +1,13 @@
 [package]
-name = "dye-res"
+name = "dye-assets"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
+dye-core.workspace = true
 dye-opt.workspace = true
 
+crossbeam-channel.workspace = true
 fnv.workspace = true
 include_dir.workspace = true
 semver.workspace = true
