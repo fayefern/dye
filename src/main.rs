@@ -11,6 +11,9 @@ use dye_render::{Backend, BackendDesc, BackendError};
 use dye_wgpu::renderer::{WgpuRenderer, describe_adapters};
 use tracing::{error, info, warn};
 
+use crate::builtin::source;
+
+pub mod builtin;
 pub mod cli;
 pub mod logging;
 
@@ -58,6 +61,8 @@ fn main() -> ExitCode {
         overrides = ?sources,
         "launch settings resolved"
     );
+
+    let _builtin = source();
 
     match start(loaded.value, RENDERERS) {
         Ok(()) => ExitCode::SUCCESS,

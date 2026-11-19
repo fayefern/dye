@@ -41,43 +41,24 @@ impl<T: OptFile> Loaded<T> {
 pub fn load<T: OptFile>(dir: &Path) -> Loaded<T> {
     let path = dir.join(T::FILE_NAME);
     let mut kinds = Vec::new();
-    let mut existed = true;
 
-    let mut value = match fs::read_to_string(&path) {
-        Ok(text) => parse::<T>(&text, &mut kinds),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            existed = false;
-            T::default()
-        }
+    let (value, existed) = match fs::read_to_string(&path) {
+        Ok(text) => (parse::<T>(&text, &mut kinds), true),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => (T::default(), false),
         Err(e) => {
             kinds.push(WarningKind::Io(e.to_string()));
-            T::default()
+            (T::default(), true)
         }
     };
 
-    let mut issues = Issues::default();
-    value.validate(&mut issues);
-    kinds.extend(
-        issues
-            .0
-            .into_iter()
-            .map(|(field, reason)| WarningKind::Invalid { field, reason }),
-    );
+    finish(&path, value, kinds, existed)
+}
 
-    let warnings = kinds
-        .into_iter()
-        .map(|kind| OptWarning {
-            path: path.clone(),
-            kind,
-        })
-        .collect();
+pub fn load_str<T: OptFile>(text: &str, label: &Path) -> Loaded<T> {
+    let mut kinds = Vec::new();
+    let value = parse::<T>(text, &mut kinds);
 
-    Loaded {
-        value,
-        path,
-        existed,
-        warnings,
-    }
+    finish(label, value, kinds, true)
 }
 
 fn parse<T: OptFile>(text: &str, kinds: &mut Vec<WarningKind>) -> T {
@@ -142,6 +123,38 @@ fn salvage<T: OptFile>(table: toml::Table, kinds: &mut Vec<WarningKind>) -> (T, 
     }
 
     deserialize::<T>(&good).unwrap_or_default()
+}
+
+fn finish<T: OptFile>(
+    path: &Path,
+    mut value: T,
+    mut kinds: Vec<WarningKind>,
+    existed: bool,
+) -> Loaded<T> {
+    let mut issues = Issues::default();
+    value.validate(&mut issues);
+    kinds.extend(
+        issues
+            .0
+            .into_iter()
+            .map(|(field, reason)| WarningKind::Invalid { field, reason }),
+    );
+
+    let buf = path.to_path_buf();
+    let warnings = kinds
+        .into_iter()
+        .map(|kind| OptWarning {
+            path: buf.clone(),
+            kind,
+        })
+        .collect();
+
+    Loaded {
+        value,
+        path: buf,
+        existed,
+        warnings,
+    }
 }
 
 pub fn save<T: OptFile>(dir: &Path, value: &T) -> io::Result<()> {

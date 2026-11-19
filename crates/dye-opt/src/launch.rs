@@ -19,7 +19,7 @@ pub struct LaunchOpt {
 impl OptFile for LaunchOpt {
     const FILE_NAME: &'static str = "launch.toml";
     const VERSION: u32 = 1;
-    const TEMPLATE: Option<&'static str> = Some(include_str!("../assets/launch.template.toml"));
+    const TEMPLATE: Option<&'static str> = Some(include_str!("../templates/launch.template.toml"));
 
     fn validate(&mut self, issues: &mut crate::warning::Issues) {
         if !(1..8192).contains(&self.window.size.width)

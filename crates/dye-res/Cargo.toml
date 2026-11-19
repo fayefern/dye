@@ -1,0 +1,14 @@
+[package]
+name = "dye-res"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dye-opt.workspace = true
+
+fnv.workspace = true
+include_dir.workspace = true
+semver.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+zip.workspace = true

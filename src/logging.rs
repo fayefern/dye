@@ -23,6 +23,7 @@ const OWN_TARGETS: &[&str] = &[
     "dye_net",
     "dye_opt",
     "dye_render",
+    "dye_res",
     "dye_wgpu",
     "dye_bin",
 ];
