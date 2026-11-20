@@ -211,6 +211,7 @@ fn index_pack(
             pack: pack.clone(),
             source: c.source.clone(),
             sub_path: f.path.as_str().into(),
+            fingerprint: f.fingerprint,
         };
         match picked.entry((kind, id)) {
             Entry::Vacant(v) => {

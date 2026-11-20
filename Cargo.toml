@@ -4,7 +4,7 @@ members = [
     "crates/dye-core",
     "crates/dye-engine",
     "crates/dye-net",
-    "crates/dye-opt",
+    "crates/dye-opts",
     "crates/dye-render",
     "crates/dye-assets",
     "crates/dye-wgpu",
@@ -21,7 +21,7 @@ dye-assets = { path = "crates/dye-assets" }
 dye-core = { path = "crates/dye-core" }
 dye-engine = { path = "crates/dye-engine" }
 dye-net = { path = "crates/dye-net" }
-dye-opt = { path = "crates/dye-opt" }
+dye-opts = { path = "crates/dye-opts" }
 dye-render = { path = "crates/dye-render" }
 dye-wgpu = { path = "crates/dye-wgpu" }
 
@@ -68,7 +68,7 @@ edition.workspace = true
 dye-app.workspace = true
 dye-assets.workspace = true
 dye-core.workspace = true
-dye-opt.workspace = true
+dye-opts.workspace = true
 dye-render.workspace = true
 dye-wgpu.workspace = true
 

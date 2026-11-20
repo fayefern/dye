@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 dye-assets.workspace = true
-dye-opt.workspace = true
+dye-opts.workspace = true
 dye-render.workspace = true
 
 bytemuck.workspace = true

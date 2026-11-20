@@ -7,5 +7,6 @@ pub mod kinds;
 pub mod manifest;
 pub mod merge;
 pub mod parse;
+pub mod reload;
 pub mod source;
 pub mod store;

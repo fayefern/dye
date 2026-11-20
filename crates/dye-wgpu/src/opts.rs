@@ -1,4 +1,4 @@
-use dye_opt::launch::{PowerPreference, PresentMode, WgpuBackend};
+use dye_opts::launch::{PowerPreference, PresentMode, WgpuBackend};
 use dye_render::{AddressMode, FilterMode, backend::TextureFormat};
 
 pub trait ToWgpu<T> {

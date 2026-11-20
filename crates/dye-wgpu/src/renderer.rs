@@ -38,8 +38,8 @@ impl WgpuRenderer {
 
         let policy = desc.opt.error_policy;
         device.on_uncaptured_error(std::sync::Arc::new(move |e| match policy {
-            dye_opt::launch::GpuErrorPolicy::Log => tracing::error!("wgpu: {e}"),
-            dye_opt::launch::GpuErrorPolicy::Panic => panic!("wgpu: {e}"),
+            dye_opts::launch::GpuErrorPolicy::Log => tracing::error!("wgpu: {e}"),
+            dye_opts::launch::GpuErrorPolicy::Panic => panic!("wgpu: {e}"),
         }));
 
         let mut config = surface
@@ -548,16 +548,16 @@ impl dye_render::Backend for WgpuRenderer {
     }
 }
 
-fn instance_descriptor(opt: &dye_opt::launch::GpuOpt) -> wgpu::InstanceDescriptor {
+fn instance_descriptor(opt: &dye_opts::launch::GpuOpt) -> wgpu::InstanceDescriptor {
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
 
-    if !matches!(opt.backend, dye_opt::launch::WgpuBackend::All) {
+    if !matches!(opt.backend, dye_opts::launch::WgpuBackend::All) {
         desc.backends = opt.backend.to_wgpu();
     }
     match opt.validation {
-        dye_opt::launch::Validation::Auto => {}
-        dye_opt::launch::Validation::On => desc.flags |= wgpu::InstanceFlags::debugging(),
-        dye_opt::launch::Validation::Off => {
+        dye_opts::launch::Validation::Auto => {}
+        dye_opts::launch::Validation::On => desc.flags |= wgpu::InstanceFlags::debugging(),
+        dye_opts::launch::Validation::Off => {
             desc.flags &= !(wgpu::InstanceFlags::VALIDATION | wgpu::InstanceFlags::DEBUG)
         }
     }
@@ -567,7 +567,7 @@ fn instance_descriptor(opt: &dye_opt::launch::GpuOpt) -> wgpu::InstanceDescripto
 fn select_adapter(
     instance: &wgpu::Instance,
     surface: &wgpu::Surface<'_>,
-    opt: &dye_opt::launch::GpuOpt,
+    opt: &dye_opts::launch::GpuOpt,
 ) -> Result<wgpu::Adapter, dye_render::BackendError> {
     let request_adapter = |force_fallback_adapter: bool| {
         pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
@@ -587,8 +587,8 @@ fn select_adapter(
     };
 
     match &opt.adapter {
-        dye_opt::launch::AdapterSelection::Auto => request_adapter(false),
-        dye_opt::launch::AdapterSelection::Name(name) => {
+        dye_opts::launch::AdapterSelection::Auto => request_adapter(false),
+        dye_opts::launch::AdapterSelection::Name(name) => {
             let needle = name.to_lowercase();
             let found = all_adapters().into_iter().find(|a| {
                 a.get_info().name.to_lowercase().contains(&needle)
@@ -599,16 +599,17 @@ fn select_adapter(
                 None => auto_selection(format!("no surface-compatible adapter matches {name:?}")),
             }
         }
-        dye_opt::launch::AdapterSelection::Index(idx) => match all_adapters().into_iter().nth(*idx)
-        {
-            Some(a) if a.is_surface_supported(surface) => Ok(a),
-            Some(a) => auto_selection(format!(
-                "adapter {idx} ({}) cannot present to this window",
-                a.get_info().name
-            )),
-            None => auto_selection(format!("adapter index {idx} out of range")),
-        },
-        dye_opt::launch::AdapterSelection::Software => request_adapter(true),
+        dye_opts::launch::AdapterSelection::Index(idx) => {
+            match all_adapters().into_iter().nth(*idx) {
+                Some(a) if a.is_surface_supported(surface) => Ok(a),
+                Some(a) => auto_selection(format!(
+                    "adapter {idx} ({}) cannot present to this window",
+                    a.get_info().name
+                )),
+                None => auto_selection(format!("adapter index {idx} out of range")),
+            }
+        }
+        dye_opts::launch::AdapterSelection::Software => request_adapter(true),
     }
 }
 
@@ -701,9 +702,9 @@ fn layout_entry(b: &dye_render::Binding) -> wgpu::BindGroupLayoutEntry {
     }
 }
 
-pub fn describe_adapters(backend: dye_opt::launch::WgpuBackend) -> Vec<String> {
+pub fn describe_adapters(backend: dye_opts::launch::WgpuBackend) -> Vec<String> {
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
-    if !matches!(backend, dye_opt::launch::WgpuBackend::All) {
+    if !matches!(backend, dye_opts::launch::WgpuBackend::All) {
         desc.backends = backend.to_wgpu();
     }
     let instance = wgpu::Instance::new(desc);

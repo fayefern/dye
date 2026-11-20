@@ -68,7 +68,7 @@ pub struct BackendDesc<'a> {
     pub window: std::sync::Arc<dyn WindowSource>,
     pub width: u32,
     pub height: u32,
-    pub opt: &'a dye_opt::launch::GpuOpt,
+    pub opt: &'a dye_opts::launch::GpuOpt,
 }
 
 pub trait WindowSource:

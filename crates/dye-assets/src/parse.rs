@@ -147,4 +147,10 @@ impl Shared {
     pub fn drain_diags(&self) -> Vec<AssetDiag> {
         take(&mut *self.diags.lock().unwrap_or_else(PoisonError::into_inner))
     }
+
+    pub fn lookup(&self, kind: KindId, id: &AssetId) -> Option<u32> {
+        let g = self.interner.lock().unwrap_or_else(PoisonError::into_inner);
+
+        g.map.get(&(kind, id.clone())).copied()
+    }
 }

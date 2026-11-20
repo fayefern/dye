@@ -1,5 +1,6 @@
 use std::{
     collections::HashSet,
+    mem::take,
     panic::{self, AssertUnwindSafe},
     sync::Arc,
     time::Duration,
@@ -105,6 +106,7 @@ pub struct Assets {
     rx: Receiver<Done>,
     inflight: usize,
     changes: Changes,
+    pending: Vec<AnyHandle>,
 }
 
 impl Assets {
@@ -121,6 +123,7 @@ impl Assets {
             rx,
             inflight: 0,
             changes: Changes::default(),
+            pending: Vec::new(),
         }
     }
 
@@ -225,20 +228,24 @@ impl Assets {
     }
 
     pub fn commit(&mut self) -> &Changes {
-        self.changes.list.clear();
         self.pump(None);
-
-        &self.changes
+        self.publish()
     }
 
     pub fn wait(&mut self, scope: ScopeId) {
-        self.changes.list.clear();
         loop {
             if self.progress(scope).is_done() || self.inflight == 0 {
                 break;
             }
             self.pump(Some(Duration::from_millis(10)));
         }
+        self.publish();
+    }
+
+    fn publish(&mut self) -> &Changes {
+        self.changes.list = take(&mut self.pending);
+
+        &self.changes
     }
 
     pub fn changed<T: Asset>(&self) -> impl Iterator<Item = Handle<T>> + '_ {
@@ -298,23 +305,33 @@ impl Assets {
     }
 
     fn start(&mut self, idx: u32) {
-        let slot = &mut self.slots[idx as usize];
-        let entry = self.shared.kinds.entry(slot.kind);
-        let layers = self.index.layers(slot.kind, &slot.id);
-        if layers.is_empty() {
-            slot.state = State::Missing;
-            self.shared
-                .diag(entry.kind, slot.id.to_string(), Problem::Missing);
-            return;
-        }
-        let picked: Vec<Layer> = match entry.layering {
+        let (kind, id) = {
+            let s = &self.slots[idx as usize];
+            (s.kind, s.id.clone())
+        };
+        let (name, layering) = {
+            let e = self.shared.kinds.entry(kind);
+            (e.kind, e.layering)
+        };
+        let layers = self.index.layers(kind, &id);
+        let picked: Vec<Layer> = match layering {
             Layering::Override => layers.last().into_iter().cloned().collect(),
             Layering::Merge => layers.to_vec(),
         };
 
+        if picked.is_empty() {
+            self.shared.diag(name, id.to_string(), Problem::Missing);
+            let slot = &mut self.slots[idx as usize];
+            slot.state = State::Missing;
+            slot.job += 1;
+            self.clear(idx);
+            return;
+        }
+
+        let slot = &mut self.slots[idx as usize];
         slot.state = State::Loading;
         slot.job += 1;
-        let (kind, id, job) = (slot.kind, slot.id.clone(), slot.job);
+        let job = slot.job;
         let (shared, tx) = (self.shared.clone(), self.tx.clone());
         self.inflight += 1;
         self.pool.spawn(move || {
@@ -325,6 +342,21 @@ impl Assets {
                 result,
             });
         });
+    }
+
+    fn clear(&mut self, idx: u32) {
+        let slot = &mut self.slots[idx as usize];
+        let old = take(&mut slot.deps);
+        if slot.value.take().is_some() {
+            slot.version += 1;
+            self.pending.push(AnyHandle {
+                slot: idx,
+                kind: slot.kind,
+            });
+        }
+        for d in old {
+            self.release(d);
+        }
     }
 
     fn release(&mut self, idx: u32) {
@@ -341,7 +373,7 @@ impl Assets {
             stack.append(&mut slot.deps);
             if had_value {
                 slot.version += 1;
-                self.changes.list.push(AnyHandle {
+                self.pending.push(AnyHandle {
                     slot: i,
                     kind: slot.kind,
                 });
@@ -364,7 +396,7 @@ impl Assets {
                 slot.value = Some(value);
                 slot.state = State::Ready;
                 slot.version += 1;
-                self.changes.list.push(AnyHandle {
+                self.pending.push(AnyHandle {
                     slot: idx,
                     kind: slot.kind,
                 });
@@ -388,7 +420,7 @@ impl Assets {
                 let old = std::mem::take(&mut slot.deps);
                 if had_value {
                     slot.version += 1;
-                    self.changes.list.push(AnyHandle {
+                    self.pending.push(AnyHandle {
                         slot: idx,
                         kind: slot.kind,
                     });
@@ -398,6 +430,28 @@ impl Assets {
                 }
             }
         }
+    }
+
+    pub fn replace_index(&mut self, index: Arc<AssetIndex>) -> usize {
+        self.sync();
+        let changed = self.index.diff(&index, &self.shared.kinds);
+        self.index = index;
+
+        for (kind, id) in &changed {
+            let Some(idx) = self.shared.lookup(*kind, id) else {
+                continue;
+            };
+            match self.slots.get(idx as usize) {
+                Some(s) if s.holders > 0 && !s.pinned => self.start(idx),
+                _ => {}
+            }
+        }
+
+        changed.len()
+    }
+
+    pub(crate) fn shared(&self) -> Arc<Shared> {
+        self.shared.clone()
     }
 }
 

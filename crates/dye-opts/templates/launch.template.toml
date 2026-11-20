@@ -33,3 +33,7 @@ enabled = true
 format = "compact"
 rotation = "launch"
 keep = 8
+
+[assets]
+hot_reload = false
+reload_interval_ms = 1000

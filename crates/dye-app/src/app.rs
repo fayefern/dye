@@ -1,8 +1,9 @@
 use std::{sync::Arc, time::Instant};
 
-use dye_assets::store::Assets;
-use dye_opt::launch::{GpuOpt, LaunchOpt};
+use dye_assets::{reload::Reloader, store::Assets};
+use dye_opts::launch::{GpuOpt, LaunchOpt};
 use dye_render::{Backend, BackendDesc, BackendError};
+use tracing::{info, warn};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -17,11 +18,16 @@ pub type BackendFactory = fn(&BackendDesc) -> Result<Box<dyn Backend>, BackendEr
 
 pub type Renderers = &'static [(&'static str, BackendFactory)];
 
-pub fn start(launch_opt: LaunchOpt, renderers: Renderers, assets: Assets) -> Result<(), AppError> {
+pub fn start(
+    launch_opt: LaunchOpt,
+    renderers: Renderers,
+    assets: Assets,
+    reloader: Option<Reloader>,
+) -> Result<(), AppError> {
     let event_loop = EventLoop::builder()
         .build()
         .map_err(|e| AppError::External(e.to_string()))?;
-    start_on(event_loop, launch_opt, renderers, assets)
+    start_on(event_loop, launch_opt, renderers, assets, reloader)
 }
 
 pub fn start_on(
@@ -29,11 +35,13 @@ pub fn start_on(
     launch_opt: LaunchOpt,
     renderers: Renderers,
     assets: Assets,
+    reloader: Option<Reloader>,
 ) -> Result<(), AppError> {
     let mut app = App {
         launch_opt,
         renderers,
         assets: Some(assets),
+        reloader: reloader,
         running: None,
         exit: Ok(()),
     };
@@ -48,6 +56,7 @@ struct App {
     launch_opt: LaunchOpt,
     renderers: Renderers,
     assets: Option<Assets>,
+    reloader: Option<Reloader>,
     running: Option<Running>,
     exit: Result<(), AppError>,
 }
@@ -89,6 +98,7 @@ impl App {
             .assets
             .take()
             .ok_or_else(|| AppError::Internal("assets already consumed".to_string()))?;
+        let reloader = self.reloader.take();
         let scene = Scene::new(&mut backend, &mut assets)?;
 
         let running = Running {
@@ -97,6 +107,7 @@ impl App {
             backend,
             window,
             assets,
+            reloader,
             scene,
 
             quit: false,
@@ -135,6 +146,17 @@ impl ApplicationHandler for App {
                 running.backend.set_size(size.width, size.height);
             }
             WindowEvent::RedrawRequested => {
+                if let Some(reloader) = &mut running.reloader
+                    && let Some(reload) = reloader.poll(&mut running.assets)
+                {
+                    for d in &reload.diags {
+                        warn!("{d}");
+                    }
+                    if reload.changed > 0 {
+                        info!(changed = reload.changed, "pack files changed, reloading");
+                    }
+                }
+
                 running.scene.frame(
                     &mut running.backend,
                     &mut running.assets,
@@ -166,6 +188,7 @@ struct Running {
     backend: Box<dyn Backend>,
     window: Arc<Window>,
     assets: Assets,
+    reloader: Option<Reloader>,
     scene: Scene,
 
     quit: bool,

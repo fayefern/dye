@@ -1,4 +1,4 @@
-use std::{fs, process::ExitCode, sync::Arc};
+use std::{fs, process::ExitCode, sync::Arc, time::Duration};
 
 use dye_app::{Renderers, app::start};
 use dye_assets::{
@@ -6,10 +6,12 @@ use dye_assets::{
     discovery::{discover, scan_packs_dir},
     kinds::Image,
     manifest::NetworkSide,
+    reload::Reloader,
+    source::PackSource,
     store::Assets,
 };
 use dye_core::JobPool;
-use dye_opt::{
+use dye_opts::{
     dirs::RootDir,
     file::{OptFile, load, render, write_default},
     launch::LaunchOpt,
@@ -72,22 +74,34 @@ fn main() -> ExitCode {
     let mut kinds = KindTable::default();
     kinds.register::<Image>();
 
+    let builtin: Arc<dyn PackSource> = Arc::from(builtin::source());
     let (others, scan_diags) = scan_packs_dir(&dirs.packs());
-    let found = discover(
-        &kinds,
-        Arc::from(builtin::source()),
-        others,
-        NetworkSide::Both,
-    );
-    for d in scan_diags.iter().chain(&found.diags) {
+    let mut found = discover(&kinds, builtin.clone(), others, NetworkSide::Both);
+    let diags: Vec<_> = scan_diags
+        .into_iter()
+        .chain(found.diags.drain(..))
+        .collect();
+    for d in &diags {
         warn!("{d}");
     }
     for p in &found.packs {
         info!(id = %p.id, version = %p.version, from = %p.label, "pack");
     }
-    let assets = Assets::new(kinds, Arc::new(found.index), pool);
+    let assets = Assets::new(kinds, Arc::new(found.index), pool.clone());
+    let assets_opts = &loaded.value.assets;
+    let reloader = assets_opts.hot_reload.then(|| {
+        Reloader::new(
+            &assets,
+            pool,
+            dirs.packs(),
+            builtin,
+            NetworkSide::Both,
+            Duration::from_millis(assets_opts.reload_interval_ms),
+            &diags,
+        )
+    });
 
-    match start(loaded.value, RENDERERS, assets) {
+    match start(loaded.value, RENDERERS, assets, reloader) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             error!("exiting with: {e}");

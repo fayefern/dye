@@ -1,6 +1,9 @@
 use std::{collections::BTreeMap, io, path::PathBuf};
 
-use dye_opt::file::{Loaded, OptFile, load_str};
+use dye_opts::{
+    file::{Loaded, OptFile, load_str},
+    warning::Issues,
+};
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 
@@ -33,7 +36,7 @@ impl OptFile for PackManifest {
     const FILE_NAME: &'static str = "pack.toml";
     const VERSION: u32 = 1;
 
-    fn validate(&mut self, issues: &mut dye_opt::warning::Issues) {
+    fn validate(&mut self, issues: &mut Issues) {
         if !is_valid_id(&self.meta.id) {
             issues.invalid(
                 "meta.id",

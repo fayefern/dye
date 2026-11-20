@@ -1,7 +1,7 @@
 use std::path::{self, PathBuf};
 
 use clap::{ArgAction, Args, CommandFactory, FromArgMatches, Parser, parser::ValueSource};
-use dye_opt::{
+use dye_opts::{
     dirs::{DirSlot, RootDir},
     file::parse_value,
     launch::{
@@ -102,6 +102,9 @@ pub struct LaunchOverrides {
     louder: u8,
     #[arg(short = 'q', long, action = ArgAction::Count)]
     quieter: u8,
+
+    #[arg(long, env = "DYE_HOT_RELOAD", value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
+    hot_reload: Option<bool>,
 }
 
 impl LaunchOverrides {
@@ -144,6 +147,10 @@ impl LaunchOverrides {
         }
 
         s.log.level = s.log.level.shift(self.louder as i8 - self.quieter as i8);
+
+        if let Some(v) = self.hot_reload {
+            s.assets.hot_reload = v;
+        }
     }
 }
 

@@ -14,6 +14,7 @@ pub struct LaunchOpt {
     pub window: WindowOpt,
     pub gpu: GpuOpt,
     pub log: LogOpt,
+    pub assets: AssetsOpt,
 }
 
 impl OptFile for LaunchOpt {
@@ -38,6 +39,11 @@ impl OptFile for LaunchOpt {
         if !(1..=3).contains(&self.gpu.desired_max_frame_latency) {
             issues.invalid("gpu.desired_max_frame_latency", "must be 1..=3. clamped");
             self.gpu.desired_max_frame_latency = self.gpu.desired_max_frame_latency.clamp(1, 3);
+        }
+
+        if !(100..=60_000).contains(&self.assets.reload_interval_ms) {
+            issues.invalid("assets.reload_interval_ms", "must be 100..=60_000. clamped");
+            self.assets.reload_interval_ms = self.assets.reload_interval_ms.clamp(100, 60_000);
         }
     }
 }
@@ -405,4 +411,20 @@ pub enum Timestamps {
     #[default]
     Utc,
     Local,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(default)]
+pub struct AssetsOpt {
+    pub hot_reload: bool,
+    pub reload_interval_ms: u64,
+}
+
+impl Default for AssetsOpt {
+    fn default() -> Self {
+        Self {
+            hot_reload: false,
+            reload_interval_ms: 1000,
+        }
+    }
 }

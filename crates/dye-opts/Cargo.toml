@@ -1,5 +1,5 @@
 [package]
-name = "dye-opt"
+name = "dye-opts"
 version.workspace = true
 edition.workspace = true
 

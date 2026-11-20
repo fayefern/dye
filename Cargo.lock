@@ -540,7 +540,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "dye-assets",
- "dye-opt",
+ "dye-opts",
  "dye-render",
  "glam",
  "thiserror 2.0.21",
@@ -554,7 +554,7 @@ version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
  "dye-core",
- "dye-opt",
+ "dye-opts",
  "fnv",
  "include_dir",
  "png",
@@ -573,7 +573,7 @@ dependencies = [
  "dye-app",
  "dye-assets",
  "dye-core",
- "dye-opt",
+ "dye-opts",
  "dye-render",
  "dye-wgpu",
  "include_dir",
@@ -599,7 +599,7 @@ name = "dye-net"
 version = "0.1.0"
 
 [[package]]
-name = "dye-opt"
+name = "dye-opts"
 version = "0.1.0"
 dependencies = [
  "directories",
@@ -614,7 +614,7 @@ name = "dye-render"
 version = "0.1.0"
 dependencies = [
  "dye-assets",
- "dye-opt",
+ "dye-opts",
  "raw-window-handle",
  "thiserror 2.0.21",
 ]
@@ -624,7 +624,7 @@ name = "dye-wgpu"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "dye-opt",
+ "dye-opts",
  "dye-render",
  "pollster",
  "raw-window-handle",

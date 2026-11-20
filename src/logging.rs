@@ -7,7 +7,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use dye_opt::launch::{FileLog, LogColor, LogFormat, LogLevel, LogOpt};
+use dye_opts::launch::{FileLog, LogColor, LogFormat, LogLevel, LogOpt};
 use tracing::error;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
