@@ -7,6 +7,7 @@ use std::{
 
 use crate::{
     error::{AssetError, IdError},
+    manifest::NetworkSide,
     parse::{Input, ParseCx},
 };
 
@@ -18,7 +19,9 @@ pub enum Layering {
 
 pub trait Asset: Send + Sync + 'static {
     const KIND: &'static str;
+    const DIR: &'static str;
     const EXTENSIONS: &'static [&'static str];
+    const SIDE: NetworkSide = NetworkSide::Both;
     const LAYERING: Layering = Layering::Override;
 
     fn nil() -> Self;
@@ -30,7 +33,9 @@ pub trait Asset: Send + Sync + 'static {
 
 pub(crate) struct KindEntry {
     pub kind: &'static str,
+    pub dir: &'static str,
     pub extensions: &'static [&'static str],
+    pub side: NetworkSide,
     pub layering: Layering,
     pub nil: AnyArc,
     pub parse: fn(&mut ParseCx, Input) -> Result<AnyArc, AssetError>,
@@ -42,7 +47,9 @@ pub(crate) type AnyArc = Arc<dyn Any + Send + Sync>;
 pub struct KindDesc {
     pub id: KindId,
     pub kind: &'static str,
+    pub dir: &'static str,
     pub extensions: &'static [&'static str],
+    pub side: NetworkSide,
     pub layering: Layering,
 }
 
@@ -61,14 +68,26 @@ impl KindTable {
             return id;
         }
         assert!(
+            is_valid_single(T::DIR),
+            "asset folder `{}` is not a valid name",
+            T::DIR
+        );
+        assert!(
             self.entries.iter().all(|e| e.kind != T::KIND),
             "asset kind `{}` registered by two different types",
             T::KIND
         );
+        assert!(
+            self.entries.iter().all(|e| e.dir != T::DIR),
+            "asset folder `{}` is used by two kinds",
+            T::DIR
+        );
         let id = KindId(self.entries.len() as u16);
         self.entries.push(KindEntry {
             kind: T::KIND,
+            dir: T::DIR,
             extensions: T::EXTENSIONS,
+            side: T::SIDE,
             layering: T::LAYERING,
             nil: Arc::new(T::nil()),
             parse: parse_erased::<T>,
@@ -76,6 +95,13 @@ impl KindTable {
         self.by_type.insert(TypeId::of::<T>(), id);
 
         id
+    }
+
+    pub fn by_dir(&self, dir: &str) -> Option<KindId> {
+        self.entries
+            .iter()
+            .position(|e| e.dir == dir)
+            .map(|i| KindId(i as u16))
     }
 
     pub fn id_of<T: Asset>(&self) -> Option<KindId> {
@@ -86,7 +112,9 @@ impl KindTable {
         self.entries.iter().enumerate().map(|(i, e)| KindDesc {
             id: KindId(i as u16),
             kind: e.kind,
+            dir: e.dir,
             extensions: e.extensions,
+            side: e.side,
             layering: e.layering,
         })
     }
@@ -129,10 +157,10 @@ pub struct AssetId {
 
 impl AssetId {
     pub fn new(namespace: &str, identity: &str) -> Result<Self, IdError> {
-        if !is_valid(namespace) {
+        if !is_valid_single(namespace) {
             return Err(IdError::Namespace(namespace.to_owned()));
         }
-        if !is_valid(identity) {
+        if !is_valid_multiple(identity) {
             return Err(IdError::Identity(identity.to_owned()));
         }
 
@@ -175,9 +203,20 @@ impl Display for AssetId {
     }
 }
 
-fn is_valid(id: &str) -> bool {
+pub(crate) fn is_valid_single(id: &str) -> bool {
     let mut chars = id.chars();
     id.len() <= 32
         && chars.next().is_some_and(|c| c.is_ascii_lowercase())
         && chars.all(|c| matches!(c, 'a'..='z' | '0'..='9' | '_'))
+}
+
+pub(crate) fn is_valid_multiple(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 128
+        && id.split('/').all(|seg| {
+            !seg.is_empty()
+                && seg
+                    .chars()
+                    .all(|c| matches!(c, 'a'..='z' | '0'..='9' | '_'))
+        })
 }

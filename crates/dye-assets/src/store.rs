@@ -153,6 +153,10 @@ impl Assets {
             .map_or(State::Unloaded, |s| s.state)
     }
 
+    pub fn id<T>(&self, h: Handle<T>) -> Option<&AssetId> {
+        self.slots.get(h.slot as usize).map(|s| &s.id)
+    }
+
     pub fn version<T>(&self, h: Handle<T>) -> u32 {
         self.slots.get(h.slot as usize).map_or(0, |s| s.version)
     }
@@ -346,6 +350,7 @@ impl Assets {
     }
 
     fn apply(&mut self, done: Done) {
+        self.sync();
         self.inflight -= 1;
         let idx = done.slot;
         let slot = &mut self.slots[idx as usize];

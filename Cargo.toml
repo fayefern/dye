@@ -33,6 +33,7 @@ fnv = "1.0.7"
 glam = "0.34.3"
 include_dir = "0.7.4"
 pollster = "1.0.1"
+png = "0.18.1"
 raw-window-handle = "0.6.2"
 semver = { version = "1.0.28", features = ["serde"] }
 serde = { version = "1.0.229", features = ["derive"] }
@@ -66,6 +67,7 @@ edition.workspace = true
 [dependencies]
 dye-app.workspace = true
 dye-assets.workspace = true
+dye-core.workspace = true
 dye-opt.workspace = true
 dye-render.workspace = true
 dye-wgpu.workspace = true

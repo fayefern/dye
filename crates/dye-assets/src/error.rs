@@ -61,9 +61,9 @@ impl Display for AssetDiag {
 
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
 pub enum IdError {
-    #[error("`{0}` is not a valid namespace (a..=z, 0..=9, `_`)")]
+    #[error("`{0}` is not a valid namespace (a..=z, 0..=9, `_`, starting with a letter)")]
     Namespace(String),
-    #[error("`{0}` is not a valid identity (a..=z, 0..=9, `_`)")]
+    #[error("`{0}` is not a valid identity (a..=z, 0..=9, `_`, with `/` between folders)")]
     Identity(String),
     #[error("`{0}` is not formatted like an asset_id (`namespace:identity`)")]
     Format(String),

@@ -6,24 +6,30 @@ use serde::{Deserialize, Serialize};
 
 use crate::source::PackSource;
 
-pub fn read_manifest(source: &dyn PackSource) -> io::Result<Loaded<ResManifest>> {
-    let bytes = source.read(ResManifest::FILE_NAME)?;
+pub fn read_manifest(source: &dyn PackSource) -> io::Result<Loaded<PackManifest>> {
+    let bytes = source.read(PackManifest::FILE_NAME)?;
     let text =
         String::from_utf8(bytes).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-    let label = PathBuf::from(format!("{}!/{}", source.label(), ResManifest::FILE_NAME));
+    let label = PathBuf::from(format!("{}!/{}", source.label(), PackManifest::FILE_NAME));
 
     Ok(load_str(&text, &label))
 }
 
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
-pub struct ResManifest {
-    pub meta: ResMeta,
+pub struct PackManifest {
+    pub meta: PackMeta,
     pub dependencies: BTreeMap<String, Dependency>,
     pub order: OrderOverride,
 }
 
-impl OptFile for ResManifest {
+impl PackManifest {
+    pub fn is_usable(&self) -> bool {
+        is_valid_id(&self.meta.id)
+    }
+}
+
+impl OptFile for PackManifest {
     const FILE_NAME: &'static str = "pack.toml";
     const VERSION: u32 = 1;
 
@@ -39,7 +45,7 @@ impl OptFile for ResManifest {
         }
 
         if self.dependencies.remove(&self.meta.id).is_some() {
-            issues.invalid("dependencies", "a res cannot depend on itself. removed");
+            issues.invalid("dependencies", "a pack cannot depend on itself. removed");
         }
         for list in [&mut self.order.after, &mut self.order.before] {
             list.retain(|id| {
@@ -77,7 +83,7 @@ fn is_valid_id(id: &str) -> bool {
 
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
-pub struct ResMeta {
+pub struct PackMeta {
     pub id: String,
     pub name: String,
     pub version: Version,
@@ -86,7 +92,7 @@ pub struct ResMeta {
     pub side: NetworkSide,
 }
 
-impl Default for ResMeta {
+impl Default for PackMeta {
     fn default() -> Self {
         Self {
             id: String::new(),
@@ -106,6 +112,12 @@ pub enum NetworkSide {
     Server,
     #[default]
     Both,
+}
+
+impl NetworkSide {
+    pub fn accepts(self, other: NetworkSide) -> bool {
+        self == Self::Both || other == Self::Both || self == other
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

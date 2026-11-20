@@ -7,7 +7,7 @@ pub fn source() -> Box<dyn PackSource> {
 
         Box::new(DirSource::new(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/builtin/core"
+            "/builtin/assets"
         )))
     }
 
@@ -16,8 +16,8 @@ pub fn source() -> Box<dyn PackSource> {
         use dye_assets::source::EmbeddedSource;
         use include_dir::{Dir, include_dir};
 
-        static DYE_RES: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/builtin/core");
+        static DYE_ASSETS: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/builtin/assets");
 
-        Box::new(EmbeddedSource::new("<builtin>", &DYE_RES))
+        Box::new(EmbeddedSource::new("<builtin>", &DYE_ASSETS))
     }
 }

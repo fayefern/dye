@@ -49,7 +49,7 @@ pub struct PathsOpt {
     pub options: Option<PathBuf>,
     pub logs: Option<PathBuf>,
     pub saves: Option<PathBuf>,
-    pub cache: Option<PathBuf>,
+    pub packs: Option<PathBuf>,
 }
 
 impl PathsOpt {
@@ -58,7 +58,7 @@ impl PathsOpt {
             (DirSlot::Options, &self.options),
             (DirSlot::Logs, &self.logs),
             (DirSlot::Saves, &self.saves),
-            (DirSlot::Cache, &self.cache),
+            (DirSlot::Packs, &self.packs),
         ] {
             if let Some(p) = value
                 && !dirs.is_overridden(slot)

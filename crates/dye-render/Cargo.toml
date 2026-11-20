@@ -4,7 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+dye-assets.workspace = true
+dye-opt.workspace = true
+
 raw-window-handle.workspace = true
 thiserror.workspace = true
-
-dye-opt.workspace = true

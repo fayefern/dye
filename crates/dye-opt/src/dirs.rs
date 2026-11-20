@@ -43,8 +43,8 @@ impl RootDir {
     pub fn saves(&self) -> PathBuf {
         self.path(DirSlot::Saves)
     }
-    pub fn cache(&self) -> PathBuf {
-        self.path(DirSlot::Cache)
+    pub fn packs(&self) -> PathBuf {
+        self.path(DirSlot::Packs)
     }
 
     pub fn path(&self, slot: DirSlot) -> PathBuf {
@@ -91,18 +91,18 @@ pub enum DirSlot {
     Options,
     Logs,
     Saves,
-    Cache,
+    Packs,
 }
 
 impl DirSlot {
-    pub const ALL: [Self; 4] = [Self::Options, Self::Logs, Self::Saves, Self::Cache];
+    pub const ALL: [Self; 4] = [Self::Options, Self::Logs, Self::Saves, Self::Packs];
 
     pub const fn default_name(self) -> &'static str {
         match self {
-            Self::Options => "options",
-            Self::Logs => "logs",
-            Self::Saves => "saves",
-            Self::Cache => "cache",
+            Self::Options => "data/options",
+            Self::Logs => "data/logs",
+            Self::Saves => "data/saves",
+            Self::Packs => "data/packs",
         }
     }
 

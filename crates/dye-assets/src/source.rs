@@ -20,7 +20,7 @@ pub trait PackSource: Send + Sync {
     fn read(&self, path: &str) -> io::Result<Vec<u8>>;
 }
 
-fn check_safe(path: &str) -> Result<(), PathError> {
+pub fn check_safe(path: &str) -> Result<(), PathError> {
     if path.is_empty() {
         return Err(PathError::Empty);
     }
@@ -40,7 +40,7 @@ fn check_safe(path: &str) -> Result<(), PathError> {
     Ok(())
 }
 
-fn check_name(path: &str) -> Result<(), PathError> {
+pub fn check_name(path: &str) -> Result<(), PathError> {
     for c in path.chars() {
         match c {
             'a'..='z' | '0'..='9' | '_' | '-' | '.' | '/' => {}
@@ -52,11 +52,11 @@ fn check_name(path: &str) -> Result<(), PathError> {
     Ok(())
 }
 
-fn is_hidden(path: &str) -> bool {
+pub(crate) fn is_hidden(path: &str) -> bool {
     path.split('/').any(|s| s.starts_with('.')) || path.starts_with("__MACOSX/")
 }
 
-fn mix(parts: &[u64]) -> u64 {
+pub(crate) fn mix(parts: &[u64]) -> u64 {
     let mut hasher = FnvHasher::default();
     for part in parts {
         hasher.write(&part.to_le_bytes());
@@ -65,7 +65,7 @@ fn mix(parts: &[u64]) -> u64 {
     hasher.finish()
 }
 
-fn invalid(e: PathError) -> io::Error {
+pub(crate) fn invalid(e: PathError) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, e)
 }
 
@@ -115,6 +115,8 @@ impl PackSource for DirSource {
                         reason: PathError::Symlink,
                     });
                 } else if ty.is_dir() {
+                    stack.push((entry.path(), rel));
+                } else if ty.is_file() {
                     if let Err(e) = check_safe(&rel) {
                         out.rejected.push(RejectedEntry {
                             path: rel,

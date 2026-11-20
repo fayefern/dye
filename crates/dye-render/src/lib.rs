@@ -1,3 +1,4 @@
+pub mod atlas;
 pub mod backend;
 pub mod error;
 

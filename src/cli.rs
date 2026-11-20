@@ -32,8 +32,8 @@ pub struct PathArgs {
     logs_dir: Option<PathBuf>,
     #[arg(long, env = "DYE_DIR_SAVES", value_name = "DIR")]
     saves_dir: Option<PathBuf>,
-    #[arg(long, env = "DYE_DIR_CACHE", value_name = "DIR")]
-    cache_dir: Option<PathBuf>,
+    #[arg(long, env = "DYE_DIR_PACKS", value_name = "DIR")]
+    packs_dir: Option<PathBuf>,
 }
 
 impl PathArgs {
@@ -46,7 +46,6 @@ impl PathArgs {
             (DirSlot::Options, &self.options_dir),
             (DirSlot::Logs, &self.logs_dir),
             (DirSlot::Saves, &self.saves_dir),
-            (DirSlot::Cache, &self.cache_dir),
         ] {
             if let Some(p) = value {
                 let abs = path::absolute(p).unwrap_or_else(|_| p.clone());

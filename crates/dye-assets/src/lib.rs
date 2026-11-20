@@ -1,8 +1,11 @@
 pub mod asset;
+pub mod discovery;
 pub mod error;
 pub mod handle;
 pub mod index;
+pub mod kinds;
 pub mod manifest;
+pub mod merge;
 pub mod parse;
 pub mod source;
 pub mod store;
