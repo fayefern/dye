@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Instant};
 
+use dye_assets::store::Assets;
 use dye_opt::launch::{GpuOpt, LaunchOpt};
 use dye_render::{Backend, BackendDesc, BackendError};
 use winit::{
@@ -16,21 +17,23 @@ pub type BackendFactory = fn(&BackendDesc) -> Result<Box<dyn Backend>, BackendEr
 
 pub type Renderers = &'static [(&'static str, BackendFactory)];
 
-pub fn start(launch_opt: LaunchOpt, renderers: Renderers) -> Result<(), AppError> {
+pub fn start(launch_opt: LaunchOpt, renderers: Renderers, assets: Assets) -> Result<(), AppError> {
     let event_loop = EventLoop::builder()
         .build()
         .map_err(|e| AppError::External(e.to_string()))?;
-    start_on(event_loop, launch_opt, renderers)
+    start_on(event_loop, launch_opt, renderers, assets)
 }
 
 pub fn start_on(
     event_loop: EventLoop<()>,
     launch_opt: LaunchOpt,
     renderers: Renderers,
+    assets: Assets,
 ) -> Result<(), AppError> {
     let mut app = App {
         launch_opt,
         renderers,
+        assets: Some(assets),
         running: None,
         exit: Ok(()),
     };
@@ -44,6 +47,7 @@ pub fn start_on(
 struct App {
     launch_opt: LaunchOpt,
     renderers: Renderers,
+    assets: Option<Assets>,
     running: Option<Running>,
     exit: Result<(), AppError>,
 }
@@ -81,14 +85,18 @@ impl App {
             .ok_or_else(|| AppError::Internal("renderer not found".to_string()))?;
         let mut backend = factory(&desc).map_err(|e| AppError::External(e.to_string()))?;
 
-        let scene = Scene::new(&mut backend).map_err(|e| AppError::External(e.to_string()))?;
+        let mut assets = self
+            .assets
+            .take()
+            .ok_or_else(|| AppError::Internal("assets already consumed".to_string()))?;
+        let scene = Scene::new(&mut backend, &mut assets)?;
 
         let running = Running {
             start: Instant::now(),
 
             backend,
             window,
-
+            assets,
             scene,
 
             quit: false,
@@ -127,9 +135,11 @@ impl ApplicationHandler for App {
                 running.backend.set_size(size.width, size.height);
             }
             WindowEvent::RedrawRequested => {
-                running
-                    .scene
-                    .frame(&mut running.backend, running.start.elapsed().as_secs_f32());
+                running.scene.frame(
+                    &mut running.backend,
+                    &mut running.assets,
+                    running.start.elapsed().as_secs_f32(),
+                );
                 running.window.request_redraw();
             }
             _ => {}
@@ -155,7 +165,7 @@ struct Running {
 
     backend: Box<dyn Backend>,
     window: Arc<Window>,
-
+    assets: Assets,
     scene: Scene,
 
     quit: bool,

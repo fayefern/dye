@@ -539,10 +539,12 @@ name = "dye-app"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "dye-assets",
  "dye-opt",
  "dye-render",
  "glam",
  "thiserror 2.0.21",
+ "tracing",
  "winit",
 ]
 

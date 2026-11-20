@@ -1,0 +1,6 @@
+version = 1
+
+[meta]
+id = "core"
+name = "Dye-Core"
+version = "0.1.0"

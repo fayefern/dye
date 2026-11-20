@@ -1,6 +1,14 @@
-use std::{fs, process::ExitCode};
+use std::{fs, process::ExitCode, sync::Arc};
 
 use dye_app::{Renderers, app::start};
+use dye_assets::{
+    asset::KindTable,
+    discovery::{discover, scan_packs_dir},
+    kinds::Image,
+    manifest::NetworkSide,
+    store::Assets,
+};
+use dye_core::JobPool;
 use dye_opt::{
     dirs::RootDir,
     file::{OptFile, load, render, write_default},
@@ -60,7 +68,26 @@ fn main() -> ExitCode {
         "launch settings resolved"
     );
 
-    match start(loaded.value, RENDERERS) {
+    let pool = Arc::new(JobPool::new("workers", JobPool::default_threads()));
+    let mut kinds = KindTable::default();
+    kinds.register::<Image>();
+
+    let (others, scan_diags) = scan_packs_dir(&dirs.packs());
+    let found = discover(
+        &kinds,
+        Arc::from(builtin::source()),
+        others,
+        NetworkSide::Both,
+    );
+    for d in scan_diags.iter().chain(&found.diags) {
+        warn!("{d}");
+    }
+    for p in &found.packs {
+        info!(id = %p.id, version = %p.version, from = %p.label, "pack");
+    }
+    let assets = Assets::new(kinds, Arc::new(found.index), pool);
+
+    match start(loaded.value, RENDERERS, assets) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             error!("exiting with: {e}");

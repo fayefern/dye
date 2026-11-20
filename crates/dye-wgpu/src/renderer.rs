@@ -1,4 +1,4 @@
-use crate::opt::ToWgpu;
+use crate::opts::ToWgpu;
 
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
@@ -17,6 +17,8 @@ pub struct WgpuRenderer {
     curr_surface_texture: Option<wgpu::SurfaceTexture>,
     depth_texture: WgpuTexture,
     buffers: dye_render::Slab<wgpu::Buffer>,
+    textures: dye_render::Slab<WgpuTexture>,
+    samplers: dye_render::Slab<wgpu::Sampler>,
     pipelines: dye_render::Slab<WgpuPipeline>,
 }
 
@@ -77,6 +79,8 @@ impl WgpuRenderer {
             curr_surface_texture: None,
             depth_texture,
             buffers: dye_render::Slab::new(),
+            textures: dye_render::Slab::new(),
+            samplers: dye_render::Slab::new(),
             pipelines: dye_render::Slab::new(),
         })
     }
@@ -97,14 +101,21 @@ impl WgpuRenderer {
             let p1 = self.pipelines.get(pipeline);
             if let Some(layout) = &p1.group {
                 let mut entries = Vec::with_capacity(p1.bindings.len());
-                for &binding in &p1.bindings {
-                    let Some(&buffer) = bound.buffers.get(&binding) else {
-                        return false;
+                for &(binding, kind) in &p1.bindings {
+                    let resource = match (kind, bound.resources.get(&binding)) {
+                        (
+                            dye_render::BindingKind::Uniform | dye_render::BindingKind::StorageRead,
+                            Some(&BoundResource::Buffer(b)),
+                        ) => self.buffers.get(b).as_entire_binding(),
+                        (dye_render::BindingKind::Texture2d, Some(&BoundResource::Texture(t))) => {
+                            wgpu::BindingResource::TextureView(&self.textures.get(t).view)
+                        }
+                        (dye_render::BindingKind::Sampler, Some(&BoundResource::Sampler(s))) => {
+                            wgpu::BindingResource::Sampler(self.samplers.get(s))
+                        }
+                        _ => return false,
                     };
-                    entries.push(wgpu::BindGroupEntry {
-                        binding,
-                        resource: self.buffers.get(buffer).as_entire_binding(),
-                    });
+                    entries.push(wgpu::BindGroupEntry { binding, resource });
                 }
                 let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: None,
@@ -181,6 +192,82 @@ impl dye_render::Backend for WgpuRenderer {
         self.buffers.remove(buffer.0);
     }
 
+    fn create_texture(&mut self, desc: &dye_render::TextureDesc) -> dye_render::TextureId {
+        let raw = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(desc.label),
+            size: wgpu::Extent3d {
+                width: desc.width.max(1),
+                height: desc.height.max(1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: desc.format.to_wgpu(),
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let view = raw.create_view(&Default::default());
+
+        dye_render::TextureId(self.textures.insert(WgpuTexture { raw, view }))
+    }
+
+    fn write_texture(&mut self, texture: dye_render::TextureId, data: &[u8]) {
+        let tex = self.textures.get(texture.0);
+        let (w, h) = (tex.raw.width(), tex.raw.height());
+        let bytes_per_pixel = 4;
+        if data.len() as u64 != w as u64 * h as u64 * bytes_per_pixel as u64 {
+            tracing::warn!(
+                "write_texture: {} bytes for a {w}*{h} texture; ignored",
+                data.len()
+            );
+            return;
+        }
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &tex.raw,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            data,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(w * bytes_per_pixel),
+                rows_per_image: Some(h),
+            },
+            wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+
+    fn destroy_texture(&mut self, texture: dye_render::TextureId) {
+        self.textures.remove(texture.0);
+    }
+
+    fn create_sampler(&mut self, desc: &dye_render::SamplerDesc) -> dye_render::SamplerId {
+        let filter = desc.filter.to_wgpu();
+        let address = desc.address.to_wgpu();
+        let raw = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some(desc.label),
+            address_mode_u: address,
+            address_mode_v: address,
+            address_mode_w: address,
+            mag_filter: filter,
+            min_filter: filter,
+            ..Default::default()
+        });
+
+        dye_render::SamplerId(self.samplers.insert(raw))
+    }
+
+    fn destroy_sampler(&mut self, sampler: dye_render::SamplerId) {
+        self.samplers.remove(sampler.0);
+    }
+
     fn create_pipeline(
         &mut self,
         desc: &dye_render::backend::PipelineDesc,
@@ -191,25 +278,7 @@ impl dye_render::Backend for WgpuRenderer {
                 label: Some(desc.label),
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(desc.shader)),
             });
-        let entries: Vec<_> = desc
-            .bindings
-            .iter()
-            .map(|b| wgpu::BindGroupLayoutEntry {
-                binding: b.binding,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: match b.kind {
-                        dye_render::BufferKind::Uniform => wgpu::BufferBindingType::Uniform,
-                        dye_render::BufferKind::StorageRead => {
-                            wgpu::BufferBindingType::Storage { read_only: true }
-                        }
-                    },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            })
-            .collect();
+        let entries: Vec<_> = desc.bindings.iter().map(layout_entry).collect();
         let group = (!entries.is_empty()).then(|| {
             self.device
                 .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -303,7 +372,7 @@ impl dye_render::Backend for WgpuRenderer {
                 cache: None,
             });
 
-        let bindings = desc.bindings.iter().map(|b| b.binding).collect();
+        let bindings = desc.bindings.iter().map(|b| (b.binding, b.kind)).collect();
 
         Ok(dye_render::PipelineId(self.pipelines.insert(
             WgpuPipeline {
@@ -402,7 +471,21 @@ impl dye_render::Backend for WgpuRenderer {
                     bound.stale = true;
                 }
                 dye_render::Command::BindBuffer { binding, buffer } => {
-                    bound.buffers.insert(binding, buffer.0);
+                    bound
+                        .resources
+                        .insert(binding, BoundResource::Buffer(buffer.0));
+                    bound.stale = true;
+                }
+                dye_render::Command::BindTexture { binding, texture } => {
+                    bound
+                        .resources
+                        .insert(binding, BoundResource::Texture(texture.0));
+                    bound.stale = true;
+                }
+                dye_render::Command::BindSampler { binding, sampler } => {
+                    bound
+                        .resources
+                        .insert(binding, BoundResource::Sampler(sampler.0));
                     bound.stale = true;
                 }
                 dye_render::Command::VertexBuffer(buffer) => {
@@ -561,14 +644,61 @@ struct WgpuPipeline {
     label: String,
     raw: wgpu::RenderPipeline,
     group: Option<wgpu::BindGroupLayout>,
-    bindings: Vec<u32>,
+    bindings: Vec<(u32, dye_render::BindingKind)>,
+}
+
+#[derive(Clone, Copy)]
+enum BoundResource {
+    Buffer(u32),
+    Texture(u32),
+    Sampler(u32),
 }
 
 #[derive(Default)]
 struct WgpuBound {
     pipeline: Option<u32>,
-    buffers: std::collections::BTreeMap<u32, u32>,
+    resources: std::collections::BTreeMap<u32, BoundResource>,
     stale: bool,
+}
+
+fn layout_entry(b: &dye_render::Binding) -> wgpu::BindGroupLayoutEntry {
+    let (visibility, ty) = match b.kind {
+        dye_render::BindingKind::Uniform => (
+            wgpu::ShaderStages::VERTEX_FRAGMENT,
+            wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+        ),
+        dye_render::BindingKind::StorageRead => (
+            wgpu::ShaderStages::VERTEX_FRAGMENT,
+            wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+        ),
+        dye_render::BindingKind::Texture2d => (
+            wgpu::ShaderStages::FRAGMENT,
+            wgpu::BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                view_dimension: wgpu::TextureViewDimension::D2,
+                multisampled: false,
+            },
+        ),
+        dye_render::BindingKind::Sampler => (
+            wgpu::ShaderStages::FRAGMENT,
+            wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+        ),
+    };
+
+    wgpu::BindGroupLayoutEntry {
+        binding: b.binding,
+        visibility,
+        ty,
+        count: None,
+    }
 }
 
 pub fn describe_adapters(backend: dye_opt::launch::WgpuBackend) -> Vec<String> {

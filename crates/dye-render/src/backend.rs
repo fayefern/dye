@@ -52,6 +52,10 @@ impl<T> Slab<T> {
 pub struct BufferId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PipelineId(pub u32);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TextureId(pub u32);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SamplerId(pub u32);
 
 pub mod usage {
     pub const VERTEX: u32 = 1;
@@ -93,6 +97,18 @@ pub trait Backend: Send {
     }
     fn destroy_buffer(&mut self, buffer: BufferId);
 
+    fn create_texture(&mut self, desc: &TextureDesc) -> TextureId;
+    fn write_texture(&mut self, texture: TextureId, data: &[u8]);
+    fn create_texture_with(&mut self, desc: &TextureDesc, data: &[u8]) -> TextureId {
+        let texture = self.create_texture(desc);
+        self.write_texture(texture, data);
+        texture
+    }
+    fn destroy_texture(&mut self, texture: TextureId);
+
+    fn create_sampler(&mut self, desc: &SamplerDesc) -> SamplerId;
+    fn destroy_sampler(&mut self, sampler: SamplerId);
+
     fn create_pipeline(
         &mut self,
         desc: &PipelineDesc,
@@ -110,7 +126,7 @@ pub struct PipelineDesc<'a> {
     pub vertex: &'a str,
     pub fragment: &'a str,
     pub vertex_layout: Option<VertexLayout<'a>>,
-    pub bindings: &'a [BufferBinding],
+    pub bindings: &'a [Binding],
     pub depth: Option<DepthState>,
     pub cull_back: bool,
     pub topology: Topology,
@@ -137,15 +153,17 @@ pub enum VertexFormat {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct BufferBinding {
+pub struct Binding {
     pub binding: u32,
-    pub kind: BufferKind,
+    pub kind: BindingKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BufferKind {
+pub enum BindingKind {
     Uniform,
     StorageRead,
+    Texture2d,
+    Sampler,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -167,6 +185,45 @@ pub enum Compare {
 pub enum Topology {
     Triangles,
     Lines,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct TextureDesc<'a> {
+    pub label: &'a str,
+    pub width: u32,
+    pub height: u32,
+    pub format: TextureFormat,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextureFormat {
+    Rgba8UnormSrgb,
+    Rgba8Unorm,
+}
+
+impl TextureFormat {
+    pub const fn bytes_per_pixel(self) -> u32 {
+        4
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct SamplerDesc<'a> {
+    pub label: &'a str,
+    pub filter: FilterMode,
+    pub address: AddressMode,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FilterMode {
+    Nearest,
+    Linear,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AddressMode {
+    ClampToEdge,
+    Repeat,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -201,8 +258,18 @@ impl CommandList {
         self.commands.push(Command::SetPipeline(pipeline));
     }
 
-    pub fn bind(&mut self, binding: u32, buffer: BufferId) {
+    pub fn bind_buffer(&mut self, binding: u32, buffer: BufferId) {
         self.commands.push(Command::BindBuffer { binding, buffer });
+    }
+
+    pub fn bind_texture(&mut self, binding: u32, texture: TextureId) {
+        self.commands
+            .push(Command::BindTexture { binding, texture });
+    }
+
+    pub fn bind_sampler(&mut self, binding: u32, sampler: SamplerId) {
+        self.commands
+            .push(Command::BindSampler { binding, sampler });
     }
 
     pub fn vertex_buffer(&mut self, buffer: BufferId) {
@@ -244,6 +311,14 @@ pub enum Command {
     BindBuffer {
         binding: u32,
         buffer: BufferId,
+    },
+    BindTexture {
+        binding: u32,
+        texture: TextureId,
+    },
+    BindSampler {
+        binding: u32,
+        sampler: SamplerId,
     },
     VertexBuffer(BufferId),
     IndexBuffer(BufferId),

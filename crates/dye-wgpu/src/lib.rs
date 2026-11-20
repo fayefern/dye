@@ -1,2 +1,2 @@
-pub mod opt;
+pub mod opts;
 pub mod renderer;
